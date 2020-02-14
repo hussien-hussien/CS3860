@@ -1,0 +1,122 @@
+---
+title: "SS3860_assignment_1"
+author: "Hussien Hussien"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ROCR)
+library(pROC)
+
+```
+
+## Question #1 
+
+
+a) Given the binary logistic link function, log[p/(1 − p)], derive the inverse link function , 1/[1 + e^−η].
+Show each step in the derivation.
+
+equation block:
+$$\eta = log \frac{p}{1-p}\\ 
+e^\eta = \frac{p}{1-p}\\  
+1 + e^\eta = \frac{p}{1-p} + \frac{1-p}{1-p} = \frac{1}{1-p} \\
+\frac{1}{1 + e^\eta} = 1-p \\
+p = 1 - \frac{1}{1 + e^\eta} = \frac{1 + e^\eta}{1 + e^\eta} - \frac{1}{1 + e^\eta} \\
+p = \frac{e^\eta}{1 + e^\eta} \blacksquare $$
+
+b) In what way does the relationship of the linear predictor and fitted value differ between normal (Gaussian) models and logistic models?
+
+1. Logistic Functions output a discrete value when given a predictor. Guassian Models will generally give a continuous variable.
+2. The error terms (ε) are not normally (Gaussian) distributed
+
+## Question #2
+
+a) Please interpret the estimated coefficients for hmo, los and the interaction term in terms of odds and odds ratio.
+
+**los: -0.0276960**
+
+`Odds:` When a patient *is NOT* part of an HMO, the odds of a patient dying decreases by $1-eˆ(-0.0276960) =  2.73\%$ with each additional day they stay in the hospital
+
+`Odds Ratio:` 0.972684 is odds ratio corresponding to an increase of los by 1
+day amongst non-hmo patients
+
+**hmoyes:los: -0.0277788**
+
+`Odds:` When a patient *is* part of an HMO, the odds of a patient dying decreases by $1 - ( eˆ(-0.0276960) * eˆ(-0.0277788)) =  5.4\%$ with each additional day they stay in the hospital
+
+`Odds Ratio:` 0.9726035 is the odds ratio corresponding to an increase of los by 1
+day amongst hmo patients
+
+$1-eˆ(-0.0277788) = 2.8% $ is the increase in odds ratio when comparing the odds ratio corresponding to a change in los by 1 day for HMO-patients versus the odds ratio corresponding to a change in los by 1 day for non-hmo-patients
+
+**hmoyes 0.1925012**
+
+`Odds:` When a patient has spent 0 days in the hospital, the odds of a patient dying increases by $1 - eˆ(0.1925012) = 21\%$ if they are part of an HMO
+
+`Odds Ratio:` 1.212278 is the odds ratio for hmo vs. non-hmo patients when they have spent 0-days in the hospital
+
+
+
+b) Why using the p-values (based on z-values) provided in the summary table above may not be a good way of assessing the siginificance of individual predictors? What are two other better strategies for doing such assessement?
+
+Better ways of assessing significance of individual predictors:
+* Deviance based method
+* Better confidence interval
+
+## Question #3
+a) Fit a binary (logistic) regression with Class as the response variable and the other nine variables as predictors. Report the residual deviance and associated degrees of freedom. Can this information be used to assess if this model fits the data? Explain.
+
+Yes this information can be used to test the goodness of fit of this model using deviance based methods.
+
+```{r load}
+library(faraway)
+suppressMessages(library(dplyr))
+wbca <- mutate(wbca,Class_factor = factor(wbca$Class,levels=c("1","0"),labels=c("benign","malignant")))
+fit_glm <- glm(Class ~ Adhes + BNucl + Chrom + Epith + Mitos + NNucl + Thick + UShap + USize, family=binomial, data=wbca)
+summary(fit_glm)
+```
+
+As you can see above, `Residual deviance:  89.464  on 671  degrees of freedom`
+
+
+b) Use the AIC criterion to determine the best subset of variables
+```{r pressure, echo=FALSE}
+small_model <- step(fit_glm, trace=0)
+summary(small_model)
+```
+
+
+c)  Produce an ROC curve based on the selected model in b) and comment on the effectiveness of the new diagnostic test.
+```{r}
+ROCpred <- predict(small_model, wbca)
+ayo <- prediction(ROCpred,wbca$Class)
+rocs <- performance(ayo,'tpr','fpr')
+m <- length(ROCpred)
+plot(rocs, col = as.list(1:m), main = "Test Set ROC Curves")
+```
+
+When analyzing the AUC (below) this new model looks very effective at 0.997
+```{r}
+auc_ROCR <- performance(ayo, measure = "auc")
+auc_ROCR@y.values[[1]]
+```
+
+
+d) It is usually misleading to use the same data to fit a model and test its predictive ability. What would be a better approach for this? Explain and write a pseudo-code for your proposed approach (you do not need to implement it).
+
+I would train the model only using 80% of the data. Then when validating the model and testing it's accuracy I would use the remaining 20% since the model hasn't seen it. Alternatively, I could use cross-validation. Here is pseodo-code for it.
+```
+randomize the dataset
+partition the data into n silos
+for each silo do the following:
+- remove that silo of the data and us it as a test set
+- fit the model using the rest of the data
+- test the model using the silo you reserved
+- record the performance using whatever score your choose
+summarize results
+```
+
+

@@ -1,0 +1,142 @@
+---
+title: "Assignment 2"
+author: "STATS 3860B/9155B"
+date: "Winter 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\textbf{Question 1}
+
+Dataset \textit{seeds}. A Biologist analyzed an experiment to determine the effect of moisture content on seed germination. Eight boxes of 100 seeds each were treated with the same moisture level. 4 boxes were covered and 4 left uncovered. The process was repeated at 6 different moisture levels (nonlinear scale). The data were ordered in blocks of 6 observations per box. 
+
+```{r}
+library(faraway)
+data(seeds)
+## creating a new predictor describing the box:
+seeds$box <- factor(x=rep(1:8, c(6,6,6,6,6,6,6,6)),
+                    levels=c("1","2","3","4","5","6","7","8")) 
+## removing one observation with missing data 
+(seeds[is.na(seeds$germ),])
+seeds <- seeds[!is.na(seeds$germ),]
+str(seeds)
+```
+
+a) The response variable \textit{germ} contains the number of seeds that germinated out of 100. Fit a binomial regression model including \textit{box} and \textit{moisture} as predictors. 
+```{r}
+qa_fit <- glm(cbind(germ,100 - germ) ~ box + moisture, family = binomial, seeds )
+summary(qa_fit)
+```
+
+b) Interpret the estimated coefficients of \textit{moisture} and \textit{box4}.
+```{r}
+box_4 <- qa_fit$coeff[['box4']]
+moisture <- qa_fit$coeff[['moisture']]
+
+odds_box4 <- exp(box_4) - 1 # decrease
+odds_moist <- 1 - exp(moisture) # increase
+odds_box4
+odds_moist
+```
+
+`moisture` - For a one unit change in moisture, the odds of germs will decrease by 10.5%. Given the other predictor variables in the model are held constant.
+`box4` - When the seeds where in the 4th box, the odds of germs will increase by 2.1%. Given the other predictor variables stay the same.
+
+
+c) What are the two hypothesis tests we can use to assess the goodness of fit for the model in a)? Perform one of those tests. Is there statistical evidence for lack of fit?
+- Pearson’s X2 Statistics
+- binomial deviance to test
+```{r}
+pchisq(deviance(qa_fit), df.residual(qa_fit),lower=FALSE)
+```
+Since this p-vlaue seems to be significantly less than than 0.05, we may reject the null hypothesis that there is no evidence for lack of fit.
+
+d) What are the other common causes for a deviance value to be larger than expected besides over/under-dispersion? 
+* Wrong form of the model: not included right predictors or transformations
+* Presence of outliers
+* Sparse data
+
+e) Suppose we have eliminated the causes listed in d) as the source of the problem, so that we can now put the blame on over/under-dispersion. Estimate the dispersion parameter and comment if the problem is over or underdispersion.
+```{r}
+sigma2 <- sum(residuals(qa_fit,type="pearson")^2)/(47-9)
+sigma2
+```
+Over dispersion seems to be the problem since the dispersion parameter > 1.
+
+f) Test for the significance of the individual predictors (\textit{moisture} and \textit{box}) accounting for overdispersion. 
+```{r}
+drop1(qa_fit,scale=sigma2,test="F")
+```
+Neither predictors are significant.
+
+
+g) Test for the significance of individual predictors (\textit{moisture} and \textit{box}) ignoring overdispersion. How do the results differ from e)? 
+
+```{r}
+drop1(qa_fit, test="Chi")
+```
+The Moisture predictor is significant, box is not.
+
+
+\vspace{0.5cm}
+
+\textbf{Question 2}
+
+Parts a), b), c), f) and g) of Exercise 1 on Page 98 of the textbook. Dataset \textit{discoveries}.
+
+```{r}
+data("discoveries")
+str(discoveries)
+
+## creating a dataframe 
+discoveries <- as.data.frame(cbind(1860:1959,discoveries))
+colnames(discoveries) <- c("year","discoveries")
+str(discoveries)
+```
+
+
+(a) Plot the discoveries over time and comment on the trend, if any.
+```{r}
+plot(discoveries)
+
+```
+It seems like the number of discoveries were trending upwards from 1860 to 1900. Then the opposite from 1900 onwards.
+
+(b) Fit a Poisson response model with a constant term. Now compute the mean number of discoveries per year. What is the relationship between this mean and the coefficient seen in the model?
+```{r}
+qb_fit <- glm(discoveries~1, family=poisson, data=discoveries)
+sumary(qb_fit)
+
+mean(discoveries$discoveries)
+```
+When exponentiated, $e^{1.131402} = 3.1  \ which \ is \ the \ mean$
+
+(c) Use the deviance from the model to check whether the model fits the data.
+What does this say about whether the rate of discoveries is constant over time?
+```{r}
+#plot(qb_fit)
+pchisq(deviance(qb_fit), df.residual(qb_fit),lower=FALSE)
+```
+Since the p-value is <0.05 we will reject the null hypothesis. There *is* a lack of fit and the rate of discoveries are probably not constant over time.
+
+
+(f) Fit a Poisson response model that is quadratic in the year. Test for the significance of the quadratic term. What does this say about the presence of a trend in discovery?
+```{r}
+qf_fit <- glm(discoveries~year + I(year^2), family=poisson, discoveries)
+#plot(discoveries)
+#abline(coefficients(qf_fit))
+sumary(qf_fit)
+anova(qf_fit, qb_fit, test="Chisq")
+```
+It appears the model including the quadtric terms is significantly impactful on the goodness of fit, thus the larger model is better. Due to a small p-vlaue, we will reject the null hypothesis. It appears that the relationship between discoveries(response) and years is more quadratic in nature than linear.
+
+(g) Compute the predicted number of discoveries each year and show these predictions as a line drawn over the data. Comment on what you see.
+```{r}
+y_pred = predict(qf_fit,type = "response",newdata = discoveries)
+plot(y_pred~discoveries$year)
+```
+This graph shows that the model argues a negative quadratic relationship between discoveries and time. Which is quite sad if true and this extrapolated to today. What do we have to learn from the end of the 19th century?
+
